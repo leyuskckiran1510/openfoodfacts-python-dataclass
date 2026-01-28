@@ -1,7 +1,6 @@
 import enum
+from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
-
-from pydantic import BaseModel, model_validator
 
 #: A precise expectation of what mappings looks like in json.
 #: (dict where keys are always of type `str`).
@@ -846,7 +845,8 @@ Lang = enum.Enum(
 )
 
 
-class APIConfig(BaseModel):
+@dataclass
+class APIConfig:
     user_agent: str
     country: Country = Country.world
     environment: Environment = Environment.org
@@ -857,8 +857,11 @@ class APIConfig(BaseModel):
     session_cookie: Optional[str] = None
     timeout: float = 10.0
 
-    @model_validator(mode="after")
-    def check_credentials(self):
+    def __post_init__(self):
+        self._check_credentials()
+        self._check_user_agent()
+
+    def _check_credentials(self):
         """Check that username and password are provided together, and that
         either username/password or session_cookie is provided."""
         if (self.username and not self.password) or (
@@ -871,13 +874,9 @@ class APIConfig(BaseModel):
                 "username/password and session_cookie are mutually exclusive"
             )
 
-        return self
-
-    @model_validator(mode="after")
-    def check_user_agent(self):
+    def _check_user_agent(self):
         if not isinstance(self.user_agent, str) or not self.user_agent.strip():
             raise ValueError("User agent must be a string and cannot be empty.")
-        return self
 
 
 class DatasetType(str, enum.Enum):

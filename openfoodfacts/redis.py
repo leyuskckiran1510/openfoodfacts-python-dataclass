@@ -1,8 +1,8 @@
 import datetime
 import logging
+from dataclasses import dataclass
 from typing import Any, Iterator, cast
 
-from pydantic import BaseModel, Json
 from redis import Redis
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,8 @@ def get_redis_client(**kwargs) -> Redis:
     )
 
 
-class ProductUpdateEvent(BaseModel):
+@dataclass
+class ProductUpdateEvent:
     """A class representing a product update from a Redis Stream."""
 
     # The Redis ID of the event
@@ -24,7 +25,7 @@ class ProductUpdateEvent(BaseModel):
     # This will always be "product_updates"
     stream: str
     # The timestamp of the event
-    timestamp: datetime.datetime
+    timestamp: int
     # The code of the product
     code: str
     # The flavor of the product (off, obf, opff, off_pro)
@@ -39,7 +40,7 @@ class ProductUpdateEvent(BaseModel):
     product_type: str
     # A JSON object representing the differences between the old and new
     # product data
-    diffs: Json[Any] | None = None
+    diffs: dict[str, Any] | None = None
 
     def is_image_upload(self) -> bool:
         """Returns True if the update is an image upload."""
@@ -93,7 +94,8 @@ class ProductUpdateEvent(BaseModel):
         )
 
 
-class OCRReadyEvent(BaseModel):
+@dataclass
+class OCRReadyEvent:
     """A class representing an OCR ready event from a Redis Stream.
 
     This event is published when the OCR processing (done by Google Cloud
@@ -109,7 +111,7 @@ class OCRReadyEvent(BaseModel):
     # This will always be "ocr_ready"
     stream: str
     # The timestamp of the event
-    timestamp: datetime.datetime
+    timestamp: int
     # The code of the product
     code: str
     # the type of the product (food, product, petfood, beauty)
@@ -168,7 +170,7 @@ def get_processed_since(
                 if stream_name == ocr_ready_stream_name:
                     yield OCRReadyEvent(
                         id=timestamp_id,
-                        timestamp=timestamp,  # type: ignore
+                        timestamp=timestamp,
                         stream=stream_name,
                         code=item["code"],
                         product_type=item["product_type"],
@@ -178,7 +180,7 @@ def get_processed_since(
                 else:
                     yield ProductUpdateEvent(
                         id=timestamp_id,
-                        timestamp=timestamp,  # type: ignore
+                        timestamp=timestamp,
                         stream=stream_name,
                         code=item["code"],
                         flavor=item["flavor"],
@@ -242,7 +244,7 @@ def get_new_updates_multistream(
                     yield OCRReadyEvent(
                         id=timestamp_id,
                         stream=stream_name,
-                        timestamp=timestamp,  # type: ignore
+                        timestamp=timestamp,
                         code=item["code"],
                         product_type=item["product_type"],
                         image_id=item["image_id"],
@@ -252,7 +254,7 @@ def get_new_updates_multistream(
                     yield ProductUpdateEvent(
                         id=timestamp_id,
                         stream=stream_name,
-                        timestamp=timestamp,  # type: ignore
+                        timestamp=timestamp,
                         code=item["code"],
                         flavor=item["flavor"],
                         user_id=item["user_id"],
@@ -308,7 +310,7 @@ class UpdateListener:
             )
         else:
             logger.info("No latest ID found")
-
+        latest_id = cast(str, latest_id)
         for event in get_new_updates_multistream(
             self.redis_client,
             min_id=latest_id,
